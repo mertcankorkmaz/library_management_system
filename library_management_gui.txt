@@ -1,0 +1,236 @@
+import tkinter as tk
+from tkinter import simpledialog, ttk
+import random
+import locale
+
+# Türkçe alfabeye göre sıralama için locale ayarları
+locale.setlocale(locale.LC_ALL, 'tr_TR.UTF-8')
+
+class InputDialog(tk.Toplevel):
+    def __init__(self, parent, title, prompt, default=None):
+        super().__init__(parent)
+        self.title(title)
+        self.parent = parent
+
+        self.prompt_label = tk.Label(self, text=prompt)
+        self.prompt_label.grid(row=0, column=0, padx=10, pady=5)
+
+        self.input_entry = tk.Entry(self)
+        self.input_entry.grid(row=0, column=1, padx=10, pady=5)
+
+        if default:
+            self.input_entry.insert(0, default)
+
+        self.ok_button = tk.Button(self, text="OK", command=self.ok)
+        self.ok_button.grid(row=1, column=0, padx=10, pady=5, sticky="we")  # Sütun numarasını 0 olarak değiştirin
+
+        self.cancel_button = tk.Button(self, text="Cancel", command=self.cancel)
+        self.cancel_button.grid(row=1, column=1, padx=10, pady=5, sticky="we")
+
+        self.grab_set()
+
+        self.wait_window(self)
+
+    def ok(self):
+        self.result = self.input_entry.get()
+        self.destroy()
+
+    def cancel(self):
+        self.result = None
+        self.destroy()
+
+
+class LibraryGUI:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Library Management System")
+
+        self.library = Library()
+
+        self.title_label = tk.Label(root, text="Library Management System", font=("Helvetica", 20, "bold"), pady=20)
+        self.title_label.grid(row=0, column=0, columnspan=2)
+
+        self.menu_frame = tk.Frame(root)
+        self.menu_frame.grid(row=1, column=0, columnspan=2)
+
+        self.list_books_button = tk.Button(self.menu_frame, text="List Books", command=self.list_books, width=15, font=("Helvetica", 12))
+        self.list_books_button.grid(row=0, column=0, padx=10, pady=5)
+
+        self.add_book_button = tk.Button(self.menu_frame, text="Add Book", command=self.add_book, width=15, font=("Helvetica", 12))
+        self.add_book_button.grid(row=0, column=1, padx=10, pady=5)
+
+        self.remove_book_button = tk.Button(self.menu_frame, text="Remove Book", command=self.remove_book, width=15, font=("Helvetica", 12))
+        self.remove_book_button.grid(row=1, column=0, padx=10, pady=5)
+
+        self.update_book_button = tk.Button(self.menu_frame, text="Update Book", command=self.update_book, width=15, font=("Helvetica", 12))
+        self.update_book_button.grid(row=1, column=1, padx=10, pady=5)
+
+        self.suggest_book_button = tk.Button(root, text="Suggest Book", command=self.suggest_book, width=15, font=("Helvetica", 12))
+        self.suggest_book_button.grid(row=2, column=0, pady=10, sticky="e")
+
+        self.total_books_label = tk.Label(root, text=f"Total Books: {len(self.library.list_books())}", font=("Helvetica", 12))
+        self.total_books_label.grid(row=2, column=1, pady=10, sticky="w")
+
+        self.exit_button = tk.Button(root, text="Exit", command=root.quit, width=10, font=("Helvetica", 12))
+        self.exit_button.grid(row=3, column=0, columnspan=2, pady=20)
+
+        self.tree = ttk.Treeview(root, columns=("Title", "Author", "Release Year", "Pages"), show="headings")
+        self.tree.heading("Title", text="Book Name")
+        self.tree.heading("Author", text="Author")
+        self.tree.heading("Release Year", text="Release Year")
+        self.tree.heading("Pages", text="Pages")
+        self.tree.grid(row=4, column=0, columnspan=2, padx=10, pady=5, sticky="nsew")
+
+        self.tree_scrollbar = ttk.Scrollbar(root, orient="vertical", command=self.tree.yview)
+        self.tree_scrollbar.grid(row=4, column=2, sticky="ns")
+        self.tree.configure(yscrollcommand=self.tree_scrollbar.set)
+
+        # List books initially
+        self.list_books()
+
+    def list_books(self):
+        self.tree.delete(*self.tree.get_children())
+        books = self.library.list_books()
+        for book in books:
+            self.tree.insert("", "end", values=book)
+        self.total_books_label.config(text=f"Total Books: {len(books)}")
+
+    def add_book(self):
+        title = self.get_user_input("Add Book", "Enter book title:")
+        if not title:  # Eğer kitap ismi girilmezse işlemi sonlandır
+            return
+        
+        author = self.get_user_input("Add Book", "Enter book author (optional):")
+        release_year = self.get_user_input("Add Book", "Enter first release year (optional):")
+        num_pages = self.get_user_input("Add Book", "Enter number of pages (optional):")
+        
+        # Küçük büyük harf duyarlılığını ortadan kaldıralım
+        title_lower = title.lower()
+        author = author if author else "NULL"
+        release_year = release_year if release_year else "0"
+        num_pages = num_pages if num_pages else "0"
+
+        # Check if the book already exists
+        books = self.library.list_books()
+        for book in books:
+            if book[0].lower() == title_lower and book[1].lower() == author.lower():
+                self.display_message("Add Book", "This book already exists.")
+                return
+
+        # If the book doesn't exist, add it
+        self.library.add_book(title, author, release_year, num_pages)
+        self.list_books()
+        self.display_message("Add Book", "Book added successfully.")
+
+    def remove_book(self):
+        title = self.get_user_input("Remove Book", "Enter the title of the book to remove:")
+        if title:
+            if self.library.remove_book(title):
+                self.list_books()
+                self.display_message("Remove Book", "Book removed successfully.")
+            else:
+                self.display_message("Remove Book", "Book not found.")
+
+    def update_book(self):
+        title = self.get_user_input("Update Book", "Enter the title of the book to update:")
+        if title:
+            if self.library.update_book(title):
+                self.list_books()
+                self.display_message("Update Book", "Book updated successfully.")
+            else:
+                self.display_message("Update Book", "Book not found or incomplete title.")
+
+    def suggest_book(self):
+        book_list = self.library.list_books()
+        if book_list:
+            suggested_book = random.choice(book_list)
+            self.display_message("Suggested Book", suggested_book)
+        else:
+            self.display_message("Suggested Book", "No books available.")
+
+    def get_user_input(self, title, prompt, default=None):
+        input_dialog = InputDialog(self.root, title, prompt, default)
+        return input_dialog.result
+
+    def display_message(self, title, message):
+        popup = tk.Toplevel()
+        popup.title(title)
+        label = tk.Label(popup, text=message, font=("Helvetica", 12), padx=10, pady=10)
+        label.pack()
+        button = tk.Button(popup, text="OK", command=popup.destroy)  # Kapat butonuna basılınca pencereyi kapat
+        button.pack(pady=10)
+        popup.grab_set()  # Yeni pencereyi öne getir
+
+
+class Library:
+    def __init__(self):
+        self.filename = "books.txt"
+        self.file = open(self.filename, "a+")
+
+    def __del__(self):
+        self.file.close()
+
+    def list_books(self):
+        self.file.seek(0)
+        books = self.file.readlines()
+        book_list = []
+        for book in books:
+            book_info = book.strip().split(',')
+            if len(book_info) == 4:
+                book_list.append((book_info[0], book_info[1], int(book_info[2]), int(book_info[3])))
+        return sorted(book_list, key=lambda x: x[0].lower())
+
+    def add_book(self, title, author, release_year, num_pages):
+        # Boş girişleri kontrol edin ve NULL değerlerle doldurun
+        book_info = f"{title},{author},{release_year},{num_pages}\n"
+        self.file.write(book_info)
+
+    def remove_book(self, title):
+        self.file.seek(0)
+        books = self.file.readlines()
+        updated_books = []
+        removed = False
+        for book in books:
+            if title.lower() != book.strip().split(',')[0].lower():
+                updated_books.append(book)
+            else:
+                removed = True
+        if removed:
+            self.file.seek(0)
+            self.file.truncate()
+            self.file.writelines(updated_books)
+        return removed
+
+    def update_book(self, title):
+        self.file.seek(0)
+        books = self.file.readlines()
+        updated_books = []
+        book_updated = False
+        for book in books:
+            if title.lower() == book.strip().split(',')[0].lower():
+                new_title = simpledialog.askstring("Update Book", f"Enter new title (current: {book.strip().split(',')[0]}):")
+                new_author = simpledialog.askstring("Update Book", f"Enter new author (current: {book.strip().split(',')[1]}):")
+                new_release_year = simpledialog.askstring("Update Book", f"Enter new release year (current: {book.strip().split(',')[2]}):")
+                new_num_pages = simpledialog.askstring("Update Book", f"Enter new number of pages (current: {book.strip().split(',')[3]}):")
+                
+                # Boş girişleri kontrol edin ve mevcut değerleri koruyun
+                new_title = new_title if new_title else book.strip().split(',')[0]
+                new_author = new_author if new_author else book.strip().split(',')[1]
+                new_release_year = new_release_year if new_release_year else book.strip().split(',')[2]
+                new_num_pages = new_num_pages if new_num_pages else book.strip().split(',')[3]
+                
+                updated_book_info = f"{new_title},{new_author},{new_release_year},{new_num_pages}\n"
+                updated_books.append(updated_book_info)
+                book_updated = True
+            else:
+                updated_books.append(book)
+        if book_updated:
+            self.file.seek(0)
+            self.file.truncate()
+            self.file.writelines(updated_books)
+        return book_updated
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = LibraryGUI(root)
+    root.mainloop()
