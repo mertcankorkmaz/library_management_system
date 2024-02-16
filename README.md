@@ -1,0 +1,1 @@
+In this project, I used the Python language and developed a project where we can keep our own library stock that we get the data from the user. In the text file named library_management_gui.txt, there are the codes of my .exe application. In the text file named library_management_terminal.txt, there is my library code that you can run on any Python terminal.
